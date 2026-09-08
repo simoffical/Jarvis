@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Knowledge Galaxy</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --panel-bg: rgba(10, 12, 22, 0.86);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --text-dim: #9aa3b8;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #000000;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: #e8ebf5;
+  }
+  #graph {
+    position: fixed;
+    inset: 0;
+  }
+  #loading {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    background: #000;
+    z-index: 50;
+    transition: opacity 0.6s ease;
+  }
+  #loading .spinner {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.15);
+    border-top-color: #7fd9ff;
+    animation: spin 0.9s linear infinite;
+  }
+  #loading .label {
+    color: var(--text-dim);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #hud {
+    position: fixed;
+    top: 20px;
+    left: 22px;
+    z-index: 20;
+    pointer-events: none;
+  }
+  #hud h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 0 18px rgba(120, 190, 255, 0.6);
+  }
+  #hud .sub {
+    margin-top: 3px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.03em;
+  }
+
+  #search-wrap {
+    position: fixed;
+    top: 20px;
+    right: 22px;
+    z-index: 20;
+    pointer-events: auto;
+  }
+  #search {
+    width: 220px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: #e8ebf5;
+    font-size: 13px;
+    outline: none;
+    backdrop-filter: blur(8px);
+  }
+  #search::placeholder { color: #6b7590; }
+  #search-results {
+    margin-top: 6px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    overflow: hidden;
+    backdrop-filter: blur(8px);
+    max-height: 260px;
+    overflow-y: auto;
+    display: none;
+  }
+  #search-results.open { display: block; }
+  #search-results .item {
+    padding: 8px 12px;
+    font-size: 12.5px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #search-results .item:last-child { border-bottom: none; }
+  #search-results .item:hover { background: rgba(255,255,255,0.06); }
+  #search-results .dot {
+    width: 8px; height: 8px; border-radius: 50%; flex: none;
+  }
+  #search-results .grp {
+    color: var(--text-dim);
+    font-size: 10.5px;
+    margin-left: auto;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  #legend {
+    position: fixed;
+    left: 22px;
+    bottom: 20px;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+  }
+  #legend .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  #legend .swatch {
+    width: 9px; height: 9px; border-radius: 50%;
+  }
+
+  #hint {
+    position: fixed;
+    bottom: 20px;
+    right: 22px;
+    z-index: 20;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: right;
+    line-height: 1.5;
+    pointer-events: none;
+  }
+
+  #panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 380px;
+    max-width: 88vw;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: -30px 0 60px rgba(0,0,0,0.5);
+    transform: translateX(100%);
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    padding: 26px 24px 20px;
+    box-sizing: border-box;
+  }
+  #panel.open { transform: translateX(0); }
+  #panel .close-btn {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+  }
+  #panel .close-btn:hover { color: #fff; }
+  #panel .group-badge {
+    display: inline-block;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    border-radius: 999px;
+    margin-bottom: 12px;
+    width: fit-content;
+  }
+  #panel h2 {
+    margin: 0 0 14px;
+    font-size: 21px;
+    line-height: 1.25;
+    font-weight: 650;
+    color: #fff;
+    padding-right: 24px;
+  }
+  #panel .excerpt {
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: #cfd4e6;
+    white-space: pre-wrap;
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 4px;
+  }
+  #panel .links-title {
+    margin-top: 16px;
+    margin-bottom: 8px;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+  }
+  #panel .neighbor-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+  #panel .neighbor-chip {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 12px;
+    color: #dfe3f2;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+  #panel .neighbor-chip:hover {
+    background: rgba(255,255,255,0.14);
+    transform: translateY(-1px);
+  }
+  #panel .filepath {
+    margin-top: 14px;
+    font-size: 10.5px;
+    color: #6b7590;
+    word-break: break-all;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="label">Charting the galaxy&hellip;</div>
+</div>
+
+<div id="graph"></div>
+
+<div id="hud">
+  <h1>Knowledge Galaxy</h1>
+  <div class="sub" id="hud-sub">&mdash;</div>
+</div>
+
+<div id="search-wrap">
+  <input id="search" type="text" placeholder="Search notes&hellip;" autocomplete="off" />
+  <div id="search-results"></div>
+</div>
+
+<div id="legend"></div>
+
+<div id="hint">
+  drag to orbit &middot; scroll to zoom<br />
+  click a star to explore
+</div>
+
+<div id="panel">
+  <button class="close-btn" id="panel-close" title="Close">&times;</button>
+  <div class="group-badge" id="panel-group">group</div>
+  <h2 id="panel-title">Title</h2>
+  <div class="excerpt" id="panel-excerpt">Excerpt&hellip;</div>
+  <div class="links-title" id="panel-links-title" style="display:none;">Connected notes</div>
+  <div class="neighbor-list" id="panel-neighbors"></div>
+  <div class="filepath" id="panel-path"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/3d-force-graph/dist/3d-force-graph.min.js"></script>
+<script src="graph-data.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  if (typeof GRAPH === "undefined") {
+    document.getElementById("loading").innerHTML =
+      '<div class="label">graph-data.js not found &mdash; run <code>python3 build.py</code> first.</div>';
+    return;
+  }
+  if (typeof ForceGraph3D === "undefined" || typeof THREE === "undefined") {
+    document.getElementById("loading").innerHTML =
+      '<div class="label">Could not load 3d-force-graph / three.js from the CDN.<br/>Check your internet connection and reload.</div>';
+    return;
+  }
+
+  // ---------- palette ----------
+  var PALETTE = [
+    "#7fd9ff", "#ff8fd6", "#ffd27f", "#8fff9e", "#c39bff",
+    "#ff8f7f", "#7fffe0", "#ffc4f0", "#a6ff7f", "#7fa8ff"
+  ];
+  function hashStr(s) {
+    var h = 0;
+    for (var i = 0; i < s.length; i++) {
+      h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    }
+    return h;
+  }
+  var groups = Array.from(new Set(GRAPH.nodes.map(function (n) { return n.group; }))).sort();
+  var groupColor = {};
+  groups.forEach(function (g, i) {
+    groupColor[g] = PALETTE[hashStr(g) % PALETTE.length] || PALETTE[i % PALETTE.length];
+  });
+
+  // ---------- degree (for sizing) ----------
+  var degree = {};
+  GRAPH.nodes.forEach(function (n) { degree[n.id] = 0; });
+  GRAPH.links.forEach(function (l) {
+    degree[l.source] = (degree[l.source] || 0) + 1;
+    degree[l.target] = (degree[l.target] || 0) + 1;
+  });
+
+  // ---------- adjacency ----------
+  var neighborsOf = {};
+  var linkKeysOf = {};
+  GRAPH.nodes.forEach(function (n) {
+    neighborsOf[n.id] = new Set();
+    linkKeysOf[n.id] = new Set();
+  });
+  GRAPH.links.forEach(function (l) {
+    var key = l.source + "->" + l.target;
+    neighborsOf[l.source].add(l.target);
+    neighborsOf[l.target].add(l.source);
+    linkKeysOf[l.source].add(key);
+    linkKeysOf[l.target].add(key);
+  });
+
+  // ---------- glow sprite texture ----------
+  function makeGlowTexture() {
+    var size = 128;
+    var canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    var ctx = canvas.getContext("2d");
+    var grd = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    grd.addColorStop(0, "rgba(255,255,255,1)");
+    grd.addColorStop(0.25, "rgba(255,255,255,0.85)");
+    grd.addColorStop(0.55, "rgba(255,255,255,0.25)");
+    grd.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, size, size);
+    var tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+  }
+  var glowTexture = makeGlowTexture();
+
+  function makeStarTexture() {
+    var size = 64;
+    var canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    var ctx = canvas.getContext("2d");
+    var grd = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    grd.addColorStop(0, "rgba(255,255,255,1)");
+    grd.addColorStop(0.4, "rgba(255,255,255,0.5)");
+    grd.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, size, size);
+    var tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  // ---------- selection state ----------
+  var selectedId = null;
+  var activeNeighborIds = null; // Set or null
+  var activeLinkKeys = null; // Set or null
+
+  function colorForNode(node) {
+    var base = groupColor[node.group] || "#8fd0ff";
+    if (selectedId === null) return base;
+    if (node.id === selectedId) return "#ffe27a";
+    if (activeNeighborIds && activeNeighborIds.has(node.id)) return base;
+    return "#2b3040";
+  }
+  function opacityForNode(node) {
+    if (selectedId === null) return 0.95;
+    if (node.id === selectedId) return 1;
+    if (activeNeighborIds && activeNeighborIds.has(node.id)) return 0.95;
+    return 0.28;
+  }
+  function scaleForNode(node) {
+    var base = 5 + Math.min(degree[node.id] || 0, 10) * 0.9;
+    if (selectedId === null) return base;
+    if (node.id === selectedId) return base * 1.7;
+    if (activeNeighborIds && activeNeighborIds.has(node.id)) return base * 1.25;
+    return base * 0.7;
+  }
+
+  function linkKeyOf(l) {
+    var s = typeof l.source === "object" ? l.source.id : l.source;
+    var t = typeof l.target === "object" ? l.target.id : l.target;
+    return s + "->" + t;
+  }
+  function isLinkActive(l) {
+    if (!activeLinkKeys) return false;
+    return activeLinkKeys.has(linkKeyOf(l));
+  }
+  function linkColor(l) {
+    return isLinkActive(l) ? "rgba(255, 226, 122, 0.9)" : "rgba(140, 160, 210, 0.18)";
+  }
+  function linkWidth(l) {
+    return isLinkActive(l) ? 1.6 : 0.5;
+  }
+  function linkParticles(l) {
+    return isLinkActive(l) ? 3 : 0;
+  }
+
+  // ---------- build graph ----------
+  var elem = document.getElementById("graph");
+  var Graph = ForceGraph3D()(elem)
+    .backgroundColor("#000000")
+    .graphData({ nodes: GRAPH.nodes.map(function (n) { return Object.assign({}, n); }), links: GRAPH.links.map(function (l) { return Object.assign({}, l); }) })
+    .nodeLabel(function (n) { return "<div style=\"font-size:12px;font-weight:600;\">" + escapeHtml(n.label) + "</div><div style=\"font-size:10px;opacity:0.7;text-transform:uppercase;letter-spacing:.05em;\">" + escapeHtml(n.group) + "</div>"; })
+    .nodeThreeObject(function (node) {
+      var material = new THREE.SpriteMaterial({
+        map: glowTexture,
+        color: new THREE.Color(colorForNode(node)),
+        transparent: true,
+        opacity: opacityForNode(node),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      var sprite = new THREE.Sprite(material);
+      var s = scaleForNode(node);
+      sprite.scale.set(s, s, 1);
+      node.__material = material;
+      node.__sprite = sprite;
+      return sprite;
+    })
+    .nodeThreeObjectExtend(false)
+    .linkColor(linkColor)
+    .linkWidth(linkWidth)
+    .linkOpacity(0.35)
+    .linkDirectionalParticles(linkParticles)
+    .linkDirectionalParticleWidth(1.6)
+    .linkDirectionalParticleSpeed(0.006)
+    .linkDirectionalParticleColor(function () { return "#ffe27a"; })
+    .onNodeClick(selectNode)
+    .onBackgroundClick(deselect)
+    .showNavInfo(false);
+
+  Graph.d3Force("charge").strength(-140);
+  if (Graph.d3Force("link")) Graph.d3Force("link").distance(70);
+
+  Graph.controlType("orbit");
+  var controls = Graph.controls();
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.35;
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+
+  // pause auto-rotate briefly whenever the user interacts
+  var idleTimer = null;
+  ["pointerdown", "wheel", "touchstart"].forEach(function (evt) {
+    elem.addEventListener(evt, function () {
+      controls.autoRotate = false;
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(function () {
+        controls.autoRotate = true;
+      }, 4000);
+    }, { passive: true });
+  });
+
+  // ---------- starfield ----------
+  (function addStarfield() {
+    var starCount = 3500;
+    var positions = new Float32Array(starCount * 3);
+    for (var i = 0; i < starCount; i++) {
+      var r = 900 + Math.random() * 2600;
+      var theta = Math.random() * Math.PI * 2;
+      var phi = Math.acos(2 * Math.random() - 1);
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = r * Math.cos(phi);
+    }
+    var geom = new THREE.BufferGeometry();
+    geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    var mat = new THREE.PointsMaterial({
+      size: 5,
+      map: makeStarTexture(),
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true
+    });
+    var points = new THREE.Points(geom, mat);
+    Graph.scene().add(points);
+
+    var twinkleClock = 0;
+    (function animateTwinkle() {
+      twinkleClock += 0.002;
+      mat.opacity = 0.65 + Math.sin(twinkleClock) * 0.15;
+      requestAnimationFrame(animateTwinkle);
+    })();
+  })();
+
+  // subtle ambient light so the scene doesn't feel totally flat (sprites are unlit but this helps future extensions)
+  Graph.scene().add(new THREE.AmbientLight(0x404060, 1));
+
+  function refreshHighlight() {
+    Graph.graphData().nodes.forEach(function (n) {
+      if (!n.__material) return;
+      n.__material.color.set(colorForNode(n));
+      n.__material.opacity = opacityForNode(n);
+      var s = scaleForNode(n);
+      n.__sprite.scale.set(s, s, 1);
+    });
+    Graph.linkColor(linkColor).linkWidth(linkWidth).linkDirectionalParticles(linkParticles);
+  }
+
+  function focusNode(node) {
+    var distance = 110;
+    var hyp = Math.hypot(node.x || 0, node.y || 0, node.z || 0);
+    var pos;
+    if (hyp < 1e-3) {
+      pos = { x: 0, y: 0, z: distance };
+    } else {
+      var distRatio = 1 + distance / hyp;
+      pos = { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio };
+    }
+    Graph.cameraPosition(pos, node, 1400);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function selectNode(node) {
+    if (!node) return;
+    selectedId = node.id;
+    activeNeighborIds = neighborsOf[node.id] || new Set();
+    activeLinkKeys = linkKeysOf[node.id] || new Set();
+    refreshHighlight();
+    focusNode(node);
+    openPanel(node);
+    controls.autoRotate = false;
+    clearTimeout(idleTimer);
+  }
+
+  function deselect() {
+    selectedId = null;
+    activeNeighborIds = null;
+    activeLinkKeys = null;
+    refreshHighlight();
+    closePanel();
+    idleTimer = setTimeout(function () { controls.autoRotate = true; }, 3000);
+  }
+
+  // ---------- side panel ----------
+  var panel = document.getElementById("panel");
+  var panelTitle = document.getElementById("panel-title");
+  var panelGroup = document.getElementById("panel-group");
+  var panelExcerpt = document.getElementById("panel-excerpt");
+  var panelNeighbors = document.getElementById("panel-neighbors");
+  var panelLinksTitle = document.getElementById("panel-links-title");
+  var panelPath = document.getElementById("panel-path");
+  var nodesById = {};
+  GRAPH.nodes.forEach(function (n) { nodesById[n.id] = n; });
+
+  function openPanel(node) {
+    panelTitle.textContent = node.label;
+    panelGroup.textContent = node.group;
+    var color = groupColor[node.group] || "#8fd0ff";
+    panelGroup.style.background = color + "26";
+    panelGroup.style.color = color;
+    panelGroup.style.border = "1px solid " + color + "55";
+    panelExcerpt.textContent = node.excerpt || "(no excerpt available)";
+    panelPath.textContent = node.path || "";
+
+    var neighborIds = Array.from(neighborsOf[node.id] || []);
+    panelNeighbors.innerHTML = "";
+    if (neighborIds.length) {
+      panelLinksTitle.style.display = "block";
+      neighborIds
+        .map(function (id) { return nodesById[id]; })
+        .filter(Boolean)
+        .sort(function (a, b) { return a.label.localeCompare(b.label); })
+        .forEach(function (nb) {
+          var chip = document.createElement("div");
+          chip.className = "neighbor-chip";
+          chip.textContent = nb.label;
+          chip.addEventListener("click", function () {
+            var liveNode = Graph.graphData().nodes.find(function (n) { return n.id === nb.id; });
+            if (liveNode) selectNode(liveNode);
+          });
+          panelNeighbors.appendChild(chip);
+        });
+    } else {
+      panelLinksTitle.style.display = "none";
+    }
+
+    panel.classList.add("open");
+  }
+  function closePanel() {
+    panel.classList.remove("open");
+  }
+  document.getElementById("panel-close").addEventListener("click", deselect);
+
+  // ---------- legend ----------
+  var legend = document.getElementById("legend");
+  groups.forEach(function (g) {
+    var row = document.createElement("div");
+    row.className = "row";
+    var sw = document.createElement("div");
+    sw.className = "swatch";
+    sw.style.background = groupColor[g];
+    sw.style.boxShadow = "0 0 8px " + groupColor[g];
+    row.appendChild(sw);
+    var label = document.createElement("span");
+    label.textContent = g;
+    row.appendChild(label);
+    legend.appendChild(row);
+  });
+
+  document.getElementById("hud-sub").textContent =
+    GRAPH.nodes.length + " notes · " + GRAPH.links.length + " connections";
+
+  // ---------- search ----------
+  var searchInput = document.getElementById("search");
+  var searchResults = document.getElementById("search-results");
+  searchInput.addEventListener("input", function () {
+    var q = searchInput.value.trim().toLowerCase();
+    searchResults.innerHTML = "";
+    if (!q) {
+      searchResults.classList.remove("open");
+      return;
+    }
+    var matches = GRAPH.nodes
+      .filter(function (n) { return n.label.toLowerCase().indexOf(q) !== -1; })
+      .slice(0, 8);
+    if (!matches.length) {
+      searchResults.classList.remove("open");
+      return;
+    }
+    matches.forEach(function (n) {
+      var item = document.createElement("div");
+      item.className = "item";
+      var dot = document.createElement("div");
+      dot.className = "dot";
+      dot.style.background = groupColor[n.group];
+      dot.style.boxShadow = "0 0 6px " + groupColor[n.group];
+      item.appendChild(dot);
+      var label = document.createElement("span");
+      label.textContent = n.label;
+      item.appendChild(label);
+      var grp = document.createElement("span");
+      grp.className = "grp";
+      grp.textContent = n.group;
+      item.appendChild(grp);
+      item.addEventListener("click", function () {
+        var liveNode = Graph.graphData().nodes.find(function (x) { return x.id === n.id; });
+        if (liveNode) selectNode(liveNode);
+        searchResults.classList.remove("open");
+        searchInput.value = n.label;
+      });
+      searchResults.appendChild(item);
+    });
+    searchResults.classList.add("open");
+  });
+  document.addEventListener("click", function (e) {
+    if (!document.getElementById("search-wrap").contains(e.target)) {
+      searchResults.classList.remove("open");
+    }
+  });
+
+  window.addEventListener("resize", function () {
+    Graph.width(window.innerWidth);
+    Graph.height(window.innerHeight);
+  });
+
+  // fade out loading screen once the sim has warmed up a bit
+  Graph.onEngineStop(function () {
+    var loading = document.getElementById("loading");
+    if (loading && loading.style.opacity !== "0") {
+      loading.style.opacity = "0";
+      setTimeout(function () { loading.remove(); }, 650);
+    }
+  });
+  // safety net in case onEngineStop never fires
+  setTimeout(function () {
+    var loading = document.getElementById("loading");
+    if (loading) {
+      loading.style.opacity = "0";
+      setTimeout(function () { loading.remove(); }, 650);
+    }
+  }, 4000);
+})();
+</script>
+</body>
+</html>
