@@ -1,0 +1,8 @@
+# Pinned against what was actually installed and tested in this repo.
+# anthropic is capped below 1.0: livekit-plugins-anthropic 1.8.0 builds its
+# own httpx.AsyncClient and hands it to the Anthropic SDK, which anthropic
+# >=1.0 rejects (it moved to an internal httpx2 fork with a different
+# AsyncClient type). anthropic<1 is the last line that still accepts it.
+livekit-agents[deepgram,elevenlabs,silero,anthropic]~=1.8.0
+anthropic<1
+python-dotenv~=1.2

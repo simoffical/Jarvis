@@ -2,3 +2,8 @@ __pycache__/
 *.pyc
 data/*
 !data/.gitkeep
+
+# voice agent: real credentials and local virtualenvs never get committed
+voice_agent/.env
+.venv-voice/
+voice_agent/.venv/

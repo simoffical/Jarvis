@@ -1,15 +1,18 @@
 # Jarvis adaptive development system
 
-This is a governance layer, not an assistant. It implements the safety
-boundaries an adaptive/self-improving assistant would need to operate
-under -- constitution, audit log, approval workflow, autonomy levels,
-emergency stop, sandboxing -- as real, tested code. It does not include
-OS automation, application launching, or voice/hardware control, because
-this repository (a markdown-notes-to-3D-viewer tool) has no runtime for
-those to plug into. Any future automation layer should sit *underneath*
-`jarvis_core.guard`, not beside it -- every action it takes should still
-have to pass `guard.assert_operational()` and, where relevant,
-`guard.require_human()`.
+This started as a governance layer with no assistant attached to it: the
+safety boundaries an adaptive/self-improving assistant would need --
+constitution, audit log, approval workflow, autonomy levels, emergency
+stop, sandboxing -- as real, tested code, with nothing yet using them.
+`voice_agent/` is the first real front-end: a LiveKit real-time voice
+agent that sits *underneath* `jarvis_core.guard`, not beside it. Its
+tools (`voice_agent/tools.py`) call straight into `jarvis_core`'s own
+`guard`/`autonomy`/`skills`/`shutdown` functions -- the same
+`guard.require_human()` check that blocks the CLI from self-approving
+also blocks the voice agent, because it's the same function. Any further
+automation layer (OS control, application launching, hardware) should
+follow the same pattern: call into `jarvis_core`, don't reimplement its
+checks.
 
 ## Layout
 
@@ -40,6 +43,11 @@ jarvis_core/
 jarvis_cli.py              human-facing front door (the only place that
                             hardcodes actor="user")
 tests/test_jarvis_core.py  proves the boundaries below actually hold
+voice_agent/
+  agent.py                 LiveKit entrypoint: STT -> Claude -> TTS
+  tools.py                 function-tools calling straight into jarvis_core
+  persona.py               builds the system prompt from personality.current()
+  requirements.txt         separate, non-stdlib deps (kept out of jarvis_core)
 ```
 
 ## The boundaries, and how they're actually enforced
@@ -72,6 +80,13 @@ assistant's own code paths (`skills.propose`, `personality.propose`,
 `proactive.add`, `improvement.observe/analyze/...`) can only ever reach
 a *pending* state. `jarvis_cli.py` is the one file allowed to hardcode
 `actor="user"`, because it IS the human typing a command.
+
+`voice_agent/` earns that same right differently: `agent.py` blocks on
+`ctx.wait_for_participant(identity=JARVIS_AUTHORIZED_IDENTITY)` before a
+session ever starts, so `actor="user"` in `voice_agent/tools.py` is only
+ever attached to a session that began with LiveKit itself verifying that
+specific identity joined the call -- not because the code trusts anything
+the LLM says. `jarvis_core` still does the actual refusing.
 
 **Emergency stop, independent of the assistant.** `data/STOP` is checked
 by `guard.assert_operational()` before every guarded action, everywhere,
